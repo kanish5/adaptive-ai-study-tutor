@@ -26,7 +26,7 @@ st.set_page_config(
     page_title="Adaptive AI Tutor",
     page_icon="🧠",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # ──────────────────────────── Custom CSS ─────────────────────────────────────
@@ -56,7 +56,88 @@ html, body, [class*="css"] {
 
 /* Hide Streamlit chrome */
 #MainMenu, footer, header { visibility: hidden; }
-.block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
+
+/* ── TOP NAV ── */
+.top-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: #161922;
+    border-bottom: 2px solid #5b8dee;
+    padding: 0 1.5rem;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+}
+.top-nav-logo {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #5b8dee;
+    margin-right: 1rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.top-nav-spacer { flex: 1; }
+.nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    border-radius: 7px;
+    border: 1px solid #2a2f3d;
+    background: transparent;
+    color: #9aa5c4;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none !important;
+    white-space: nowrap;
+    transition: all 0.15s;
+    font-family: 'Space Grotesk', sans-serif;
+}
+.nav-btn:hover {
+    background: #1e2330;
+    border-color: #5b8dee;
+    color: #e8ecf4;
+}
+.nav-btn.active {
+    background: #5b8dee22;
+    border-color: #5b8dee;
+    color: #5b8dee;
+    font-weight: 600;
+}
+.nav-btn-cta {
+    background: #5b8dee !important;
+    border-color: #5b8dee !important;
+    color: white !important;
+    font-weight: 600 !important;
+}
+.nav-btn-cta:hover { opacity: 0.85; }
+
+/* Push content below fixed nav */
+.block-container {
+    padding-top: 4rem !important;
+    padding-bottom: 2rem;
+}
+
+/* Sidebar tweaks — used only for stats/focus/mastery */
+.css-1d391kg, [data-testid="stSidebar"] {
+    background: var(--surface) !important;
+    border-right: 1px solid var(--border) !important;
+    top: 52px !important;          /* sit below top nav */
+}
+
+/* Force sidebar hamburger always visible */
+[data-testid="collapsedControl"] {
+    visibility: visible !important;
+    opacity: 1 !important;
+    display: flex !important;
+    top: 60px !important;
+}
 
 /* Cards */
 .tutor-card {
@@ -153,12 +234,6 @@ html, body, [class*="css"] {
     font-size: 0.8rem;
 }
 
-/* Sidebar tweaks */
-.css-1d391kg, [data-testid="stSidebar"] {
-    background: var(--surface) !important;
-    border-right: 1px solid var(--border) !important;
-}
-
 /* Buttons */
 .stButton > button {
     background: var(--accent) !important;
@@ -223,21 +298,20 @@ def get_generator():
 
 @st.cache_resource
 def get_session():
-    mgr = SessionManager()
-    return mgr
+    return SessionManager()
 
 
 def init_state():
     defaults = {
-        "page": "home",              # home | quiz | results | dashboard
-        "question": None,            # current question dict
+        "page": "home",
+        "question": None,
         "topic": None,
         "difficulty": None,
         "answered": False,
         "selected_option": None,
         "q_start_time": None,
         "session_active": False,
-        "locked_topic": None,        # None = RL chooses; str = user-locked
+        "locked_topic": None,
         "hint_shown": False,
         "hint_text": "",
         "questions_this_session": 0,
@@ -248,16 +322,45 @@ def init_state():
 
 
 init_state()
+
+# ── Handle URL query params for nav (must run before any render) ──
+_params = st.query_params
+if "nav" in _params:
+    _nav = _params["nav"]
+    if _nav in ["home", "quiz", "dashboard", "results"]:
+        if st.session_state.get("page") != _nav:
+            st.session_state.page = _nav
+    st.query_params.clear()
+
 agent = get_agent()
 session_mgr = get_session()
 gen = get_generator()
+
+
+# ──────────────────────────── Top Nav ────────────────────────────────────────
+
+def render_top_nav():
+    page = st.session_state.get("page", "home")
+
+    def _cls(p):
+        return "nav-btn active" if page == p else "nav-btn"
+
+    st.markdown(f"""
+    <div class="top-nav">
+        <span class="top-nav-logo">🧠 AI Study Tutor</span>
+        <a class="{_cls('home')}" href="?nav=home" target="_self">🏠 Home</a>
+        <a class="{_cls('quiz')}" href="?nav=quiz" target="_self">📝 Quiz</a>
+        <a class="{_cls('dashboard')}" href="?nav=dashboard" target="_self">📊 Dashboard</a>
+        <div class="top-nav-spacer"></div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 # ──────────────────────────── Sidebar ────────────────────────────────────────
 
 def render_sidebar():
     with st.sidebar:
-        st.markdown("## 🧠 AI Study Tutor")
+        st.markdown("## 📊 Stats & Settings")
         st.markdown("---")
 
         # All-time stats
@@ -279,17 +382,6 @@ def render_sidebar():
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Navigation
-        st.markdown("<div class='section-title'>Navigation</div>", unsafe_allow_html=True)
-        if st.button("🏠 Home", use_container_width=True):
-            st.session_state.page = "home"
-            st.rerun()
-        if st.button("📊 Dashboard", use_container_width=True):
-            st.session_state.page = "dashboard"
-            st.rerun()
-
-        st.markdown("---")
-
         # Topic lock
         st.markdown("<div class='section-title'>Focus Mode</div>", unsafe_allow_html=True)
         topic_options = {"🎲 Let AI Decide": None}
@@ -305,7 +397,7 @@ def render_sidebar():
 
         st.markdown("---")
 
-        # Mastery heatmap (simple)
+        # Mastery heatmap
         mastery = agent.get_topic_mastery()
         if mastery:
             st.markdown("<div class='section-title'>Topic Mastery</div>", unsafe_allow_html=True)
@@ -346,7 +438,6 @@ def render_home():
     )
     st.markdown("---")
 
-    # Topic cards
     st.markdown("### 📚 Available Topics")
     cols = st.columns(3)
     for i, (key, topic) in enumerate(TOPICS.items()):
@@ -390,7 +481,6 @@ def _start_quiz():
 # ──────────────────────────── Quiz Page ──────────────────────────────────────
 
 def _load_next_question():
-    """Use RL agent to pick next arm, then generate question."""
     locked = st.session_state.locked_topic
     topic_key, diff_key = agent.select_arm(locked_topic=locked)
 
@@ -411,7 +501,10 @@ def _load_next_question():
 def render_quiz():
     q = st.session_state.question
     if q is None:
-        st.warning("No question loaded. Go back home to start.")
+        st.warning("No question loaded.")
+        if st.button("🏠 Go Home"):
+            st.session_state.page = "home"
+            st.rerun()
         return
 
     topic_key = st.session_state.topic
@@ -419,7 +512,6 @@ def render_quiz():
     topic = TOPICS.get(topic_key, {})
     diff = DIFFICULTIES.get(diff_key, {})
 
-    # ── Header bar ──
     col_t, col_d, col_s, col_n = st.columns([3, 2, 2, 1])
     with col_t:
         st.markdown(f"### {topic.get('emoji','')} {topic.get('name','')}")
@@ -434,7 +526,6 @@ def render_quiz():
     with col_n:
         st.markdown(f"**Q #{st.session_state.questions_this_session + 1}**")
 
-    # ── Question ──
     st.markdown(f"""
     <div class='question-card'>
         <p style='font-size:0.7rem;color:#6b7394;text-transform:uppercase;letter-spacing:0.1em;margin:0'>Question</p>
@@ -442,7 +533,6 @@ def render_quiz():
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Options ──
     options = q.get("options", {})
     option_labels = [f"{k}. {v}" for k, v in options.items()]
 
@@ -476,12 +566,10 @@ def render_quiz():
             st.info(f"💡 **Hint:** {st.session_state.hint_text}")
 
     else:
-        # ── Show result ──
         selected = st.session_state.selected_option
         correct = q.get("correct_answer", "")
         is_correct = selected == correct
 
-        # Render all options with color coding
         for key, val in options.items():
             label = f"{key}. {val}"
             if key == correct:
@@ -528,7 +616,6 @@ def _submit_answer():
     is_correct = selected == correct
     elapsed = time.time() - (st.session_state.q_start_time or time.time())
 
-    # Update RL agent
     agent.update(
         topic=st.session_state.topic,
         difficulty=st.session_state.difficulty,
@@ -536,7 +623,6 @@ def _submit_answer():
         response_time_seconds=elapsed,
     )
 
-    # Record in session
     session_mgr.record_answer(
         topic=st.session_state.topic,
         difficulty=st.session_state.difficulty,
@@ -570,7 +656,6 @@ def render_results():
     correct = summary.get("correct", 0)
     accuracy = summary.get("accuracy", 0)
 
-    # Big stats
     c1, c2, c3, c4 = st.columns(4)
     for col, val, label in zip(
         [c1, c2, c3, c4],
@@ -586,7 +671,6 @@ def render_results():
 
     st.markdown("---")
 
-    # Topic breakdown
     if summary.get("by_topic"):
         st.markdown("### 📊 Breakdown by Topic")
         cols = st.columns(len(summary["by_topic"]))
@@ -603,7 +687,6 @@ def render_results():
                     <div style='font-size:0.75rem;color:#6b7394'>{t_stats['correct']}/{t_stats['total']} correct</div>
                 </div>""", unsafe_allow_html=True)
 
-    # Badges
     badges = session_mgr.get_badges()
     if badges:
         st.markdown("### 🏅 Badges Earned")
@@ -613,7 +696,6 @@ def render_results():
         )
         st.markdown(badge_html, unsafe_allow_html=True)
 
-    # AI summary
     if total > 0:
         st.markdown("### 🤖 AI Study Coach Says...")
         with st.spinner("Generating personalized feedback..."):
@@ -640,7 +722,6 @@ def render_dashboard():
     st.markdown("*Powered by the UCB1 RL agent — tracks your adaptive learning journey*")
     st.markdown("---")
 
-    # All-time stats
     ats = session_mgr.get_all_time_stats()
     c1, c2, c3, c4 = st.columns(4)
     for col, val, label in zip(
@@ -662,7 +743,6 @@ def render_dashboard():
 
     st.markdown("---")
 
-    # RL Agent internals
     st.markdown("### 🤖 RL Agent — Arm Exploration Map")
     st.markdown(
         "Each cell = (topic × difficulty) arm. The agent uses **UCB1** to prioritize "
@@ -698,7 +778,6 @@ def render_dashboard():
 
     st.markdown("---")
 
-    # Topic mastery chart using Streamlit native
     mastery = agent.get_topic_mastery()
     if mastery:
         st.markdown("### 📈 Topic Mastery")
@@ -709,7 +788,6 @@ def render_dashboard():
         ])
         st.bar_chart(df.set_index("Topic"))
 
-    # Topic performance from DB
     perf = session_mgr.get_topic_performance()
     if perf:
         st.markdown("### 📋 Historical Performance")
@@ -726,7 +804,6 @@ def render_dashboard():
         import pandas as pd
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
-    # Badges
     badges = session_mgr.get_badges()
     if badges:
         st.markdown("### 🏅 Achievements")
@@ -743,6 +820,7 @@ def render_dashboard():
 
 # ──────────────────────────── Router ─────────────────────────────────────────
 
+render_top_nav()
 render_sidebar()
 
 page = st.session_state.page
